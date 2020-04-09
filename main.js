@@ -1,9 +1,14 @@
 
+
 const types = {
     INTEGER: 'integer',
     PLUS: 'plus',
     MINUS: 'minus',
-    EOF: 'eof'
+    EOF: 'eof',
+    MUL: 'mul',
+    DIV: 'div',
+    LPAREN: '(',
+    RPAREN: ')'
 }
 
 
@@ -15,11 +20,10 @@ class token {
 }
 
 
-class Interpreter{
+class Lexer{
     constructor(text){
         this.text = text; 
         this.pos = 0;
-        this.currentToken = null;
         this.currentCharacter = this.text[this.pos];
     }
 
@@ -30,14 +34,13 @@ class Interpreter{
     }
 
     
-
     integer = () => {
         let result = ''
         while (this.isInteger(this.currentCharacter)) {
             result += this.currentCharacter
             this.advance()
         }
-        return new token(result, types.INTEGER)
+        return result
     }
 
     advance = () => {
@@ -55,6 +58,12 @@ class Interpreter{
         return !isNaN(value) && value != null
     }
 
+    factor = () => {
+        let token = this.currentToken
+        this.eat(types.INTEGER)
+        return token.value
+    }
+
     getNextToken = () => {
         
         
@@ -65,7 +74,7 @@ class Interpreter{
             }
             
             if (this.isInteger(this.currentCharacter)){
-                return this.integer()
+                return new token(this.integer(), types.INTEGER)
             }
 
             if (this.currentCharacter == '+'){
@@ -78,6 +87,27 @@ class Interpreter{
                 return new token('+', types.MINUS)
             }
 
+            if (this.currentCharacter == '/'){
+                this.advance()
+                return new token('/', types.DIV)
+            }
+
+            
+            if (this.currentCharacter == '*'){
+                this.advance()
+                return new token('/', types.MUL)
+            }
+
+            if (this.currentCharacter == '('){
+                this.advance()
+                return new token('(', types.LPAREN)
+            }
+
+            if (this.currentCharacter == ')'){
+                this.advance()
+                return new token(')', types.RPAREN)
+            }
+
             throw new Error('Couldnt parse')
         }
 
@@ -85,53 +115,87 @@ class Interpreter{
     }
 
 
-    eat = (desiredTypes) => {
-        if (this.currentToken != null && desiredTypes.includes(this.currentToken.type)) {
-            this.currentToken = this.getNextToken()
+}
+
+
+class Interpreter {
+    constructor(lexer){
+        this.lexer = lexer;
+        this.currentToken = this.lexer.getNextToken()
+    }
+
+
+    eat = (desiredType) => {
+        if (this.currentToken != null && desiredType == this.currentToken.type) {
+            this.currentToken = this.lexer.getNextToken()
         } else {
             throw new Error('Syntax error');
         }
     }
 
 
-    performOperation = (left, right, op) => {
-        switch (op.type) {
-            case types.MINUS:
-                return parseInt(left.value) - parseInt(right.value)
-            case types.PLUS:
-                return parseInt(left.value) + parseInt(right.value)
-            default: 
-                break
+    factor = () => {
+        let token = this.currentToken
+        switch (token.type) {
+            case types.INTEGER:
+                this.eat(types.INTEGER);
+                return token.value
+            case types.LPAREN:
+                this.eat(types.LPAREN)
+                let result = this.expr()
+                this.eat(types.RPAREN)
+                return result
+
         }
+        
     }
 
+    term = () => {
+
+        let result = this.factor()
+        while ([types.MUL,types.DIV].includes(this.currentToken.type)) {
+
+            let token = this.currentToken
+            switch (token.type){
+                case types.MUL:
+                    this.eat(types.MUL)
+                    result = parseInt(result) * parseInt(this.factor())
+                    break
+                case types.DIV:
+                    this.eat(types.DIV)
+                    result = parseInt(result) / parseInt(this.factor())
+                    break
+                default:
+                    break
+            }
+        }
+
+        return result
+
+    }
 
     expr = () => {
         
-        this.currentToken = this.getNextToken();
-        let result = null
-
         
-        while (this.currentToken.type != types.EOF) {
+        let result = this.term()
+        while ([types.PLUS,types.MINUS].includes(this.currentToken.type)) {
 
-
-            let left = result
-            if (left == null){
-                left = this.currentToken
-                this.eat([types.INTEGER])
+            let token = this.currentToken
+            switch (token.type){
+                case types.PLUS:
+                    this.eat(types.PLUS);
+                    result = parseInt(result) + parseInt(this.term())
+                    break
+                case types.MINUS:
+                    this.eat(types.MINUS);
+                    result = parseInt(result) - parseInt(this.term())
+                    break
+                default:
+                    break
             }
-
-            let op = this.currentToken
-            this.eat([types.MINUS, types.PLUS])
-            
-            let right = this.currentToken
-            this.eat([types.INTEGER])
-
-            let value = this.performOperation(left, right, op)
-            result = new token(value, types.INTEGER)
         }
 
-        return result.value
+        return result
 
     }
 
@@ -150,7 +214,8 @@ function prompt(){
             process.exit();
         }else {   
             console.log('User Input Data : ' + data);
-            let interpreter = new Interpreter(data)
+            let lexer = new Lexer(data)
+            let interpreter = new Interpreter(lexer)
             console.log(interpreter.expr())
         }
     });
