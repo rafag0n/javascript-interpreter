@@ -56,7 +56,7 @@ class Lexer{
     getNextToken = () => {
 
         while (this.currentChar!=null){
-            
+
             if (this.isInteger(this.currentChar)){
                 return new Token(this.getIntegerToken(), type.INTEGER)
             }
@@ -83,14 +83,17 @@ class Lexer{
 
             
             if (this.currentChar == ')'){
+                this.advance()
                 return new Token(')', type.RPAREN)
             }
 
             if (this.currentChar == '*'){
+                this.advance()
                 return new Token('*', type.MUL)
             }
 
             if (this.currentChar == '/'){
+                this.advance()
                 return new Token('/', type.DIV)
             }
 
@@ -155,8 +158,8 @@ class Parser{
             let token = this.currentToken;
             if (token.type == type.MUL){
                 this.eat(type.MUL)
-            } if (token.type == type.PLUS){
-                this.eat(type.PLUS)
+            } if (token.type == type.DIV){
+                this.eat(type.DIV)
             }
             new BinaryOperator()
             node = new BinaryOperator(node, this.factor(),token)
@@ -183,16 +186,56 @@ class Parser{
     }
 
     parse = () => {
-        return this.expr()
+        let tree =  this.expr()
+        return tree
     }
 
 }
+
+
+
 
 class Interpreter{
-    constructor(){
-        //should read the AST and return a value
+    constructor(parser){
+        //should traverse a tree produced by the parser returning a value
+        this.parser = parser;
     }
+
+    visit = (node) => {
+        
+        if (node.op != null){
+            return this.visitBinaryOperator(node)
+        } else {
+            return this.visitNumber(node)
+        }
+    }
+
+    visitBinaryOperator = (node) => {
+        switch (node.token.type) {
+            case type.PLUS:
+                return this.visit(node.left)+this.visit(node.right)
+            case type.MINUS:
+                return this.visit(node.left)-this.visit(node.right)
+            case type.MUL:
+                return this.visit(node.left)*this.visit(node.right)
+            case type.DIV:
+                return this.visit(node.left)/this.visit(node.right)
+        }
+    }
+
+    visitNumber = (node) => {
+        return parseInt(node.value)
+    }
+
+    interpret = () => {
+        const tree = this.parser.parse()
+        return this.visit(tree)
+    }
+
+
 }
+
+
 
 function prompt(){
 
@@ -208,7 +251,8 @@ function prompt(){
             console.log('User Input Data : ' + data);
             let lexer = new Lexer(data)
             let parser = new Parser(lexer)
-            console.log(parser.parse())
+            let interpreter = new Interpreter(parser)
+            console.log(interpreter.interpret())
         }
     });
 
